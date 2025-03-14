@@ -44,7 +44,7 @@ public abstract class Tool : ViewModelBase
 
 public class LineTool : Tool
 {
-    private LineEntity? _currentEntity;
+    private DxfLineEntity? _currentEntity;
     
     public LineTool(IDrawingService drawingService, ICanvasService canvasService)
         : base(drawingService, canvasService)
@@ -92,13 +92,13 @@ public class LineTool : Tool
         CanvasService.Invalidate();
     }
 
-    private LineEntity Add(Point position)
+    private DxfLineEntity Add(Point position)
     {
         var (x, y) = position;
         var height = CanvasService.GetHeight();
         y = height - y;
 
-        var entity = new LineEntity
+        var entity = new DxfLineEntity
         {
             StartPointX = x,
             StartPointY = y,
@@ -111,7 +111,7 @@ public class LineTool : Tool
         return entity;
     }
 
-    private void Move(LineEntity entity, object? sender, PointerEventArgs e)
+    private void Move(DxfLineEntity entity, object? sender, PointerEventArgs e)
     {
         var position = e.GetPosition(sender as Visual);
 
@@ -143,16 +143,16 @@ public class LineTool : Tool
     }
 }
 
-public abstract class Entity : ViewModelBase
+public abstract class DxfEntity : ViewModelBase
 {
     public abstract void Render(DrawingContext context);
 }
 
-public class LineEntity : Entity
+public class DxfLineEntity : DxfEntity
 {
     private Pen _pen;
 
-    public LineEntity()
+    public DxfLineEntity()
     {
         _pen = new Pen(Brushes.White, 1);
     }
@@ -178,10 +178,10 @@ public class DxfDrawing : ViewModelBase
 {
     public DxfDrawing()
     {
-        Entities = new List<Entity>();
+        Entities = new List<DxfEntity>();
     }
 
-    public List<Entity> Entities { get; set; }
+    public List<DxfEntity> Entities { get; set; }
 
     public void Render(DrawingContext context, Rect bounds)
     {
@@ -199,7 +199,7 @@ public class DxfDrawing : ViewModelBase
 
 public interface IDrawingService
 {
-    void Add(Entity entity);
+    void Add(DxfEntity dxfEntity);
 }
 
 public interface ICanvasService
@@ -231,7 +231,7 @@ public class DxfWriterService
         writer.WriteLine("ENDSEC");
     }
     
-    private void WriteEntitiesSection(StreamWriter writer, List<Entity> entities)
+    private void WriteEntitiesSection(StreamWriter writer, List<DxfEntity> entities)
     {
         writer.WriteLine("0");
         writer.WriteLine("SECTION");
@@ -242,7 +242,7 @@ public class DxfWriterService
         {
             switch (entity)
             {
-                case LineEntity lineEntity:
+                case DxfLineEntity lineEntity:
                     WriteLineEntity(writer, lineEntity);
                     break;
             }
@@ -252,22 +252,22 @@ public class DxfWriterService
         writer.WriteLine("ENDSEC");
     }
 
-    private void WriteLineEntity(StreamWriter writer, LineEntity lineEntity)
+    private void WriteLineEntity(StreamWriter writer, DxfLineEntity dxfLineEntity)
     {
         writer.WriteLine("0");
         writer.WriteLine("LINE");
 
         writer.WriteLine("10");
-        writer.WriteLine(lineEntity.StartPointX.ToString(CultureInfo.InvariantCulture));
+        writer.WriteLine(dxfLineEntity.StartPointX.ToString(CultureInfo.InvariantCulture));
 
         writer.WriteLine("20");
-        writer.WriteLine(lineEntity.StartPointY.ToString(CultureInfo.InvariantCulture));
+        writer.WriteLine(dxfLineEntity.StartPointY.ToString(CultureInfo.InvariantCulture));
 
         writer.WriteLine("11");
-        writer.WriteLine(lineEntity.EndPointX.ToString(CultureInfo.InvariantCulture));
+        writer.WriteLine(dxfLineEntity.EndPointX.ToString(CultureInfo.InvariantCulture));
 
         writer.WriteLine("21");
-        writer.WriteLine(lineEntity.EndPointY.ToString(CultureInfo.InvariantCulture));
+        writer.WriteLine(dxfLineEntity.EndPointY.ToString(CultureInfo.InvariantCulture));
     }
 
     private void WriteEofSection(StreamWriter writer)
@@ -279,23 +279,23 @@ public class DxfWriterService
 
 public class DxfReaderService
 {
-    private void ReadDxfLineEntity(LineEntity lineEntity, int code, string data)
+    private void ReadDxfLineEntity(DxfLineEntity dxfLineEntity, int code, string data)
     {
         if (code == 10)
         {
-            lineEntity.StartPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
+            dxfLineEntity.StartPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
         }
         else if (code == 20)
         {
-            lineEntity.StartPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
+            dxfLineEntity.StartPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
         }
         else if (code == 11)
         {
-            lineEntity.EndPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);   
+            dxfLineEntity.EndPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);   
         }
         else if (code == 21)
         {
-            lineEntity.EndPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture); 
+            dxfLineEntity.EndPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture); 
         }
     }
 
@@ -334,14 +334,14 @@ public class DxfReaderService
                 }
                 else if (dataLine == "LINE")
                 {
-                    var lineEntity = new LineEntity();
+                    var lineEntity = new DxfLineEntity();
                     dxfDrawing.Entities.Add(lineEntity);
                     currentObject = lineEntity;
                 }
             }
             else
             {
-                if (currentObject is LineEntity lineEntity)
+                if (currentObject is DxfLineEntity lineEntity)
                 {
                     ReadDxfLineEntity(lineEntity, code, dataLine);
                 }
@@ -373,9 +373,9 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
 
     public DxfDrawing DxfDrawing { get; private set; }
 
-    public void Add(Entity entity)
+    public void Add(DxfEntity dxfEntity)
     {
-        DxfDrawing.Entities.Add(entity);
+        DxfDrawing.Entities.Add(dxfEntity);
     }
     
     public void Render(DrawingContext context, Rect bounds)
