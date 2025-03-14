@@ -37,7 +37,7 @@ public partial class MainWindow : Window
         {
             await using var stream = await file.OpenReadAsync();
 
-            CadCanvas.Drawing.Open(stream, CadCanvas.Bounds.Height);
+            CadCanvas.Drawing.Open(stream);
         }
     }
     
@@ -62,6 +62,6 @@ public partial class MainWindow : Window
 
         await using var stream = await file.OpenWriteAsync();
 
-        CadCanvas.Drawing.SaveAs(stream, CadCanvas.Bounds.Height);
+        CadCanvas.Drawing.SaveAs(stream);
     }
 }

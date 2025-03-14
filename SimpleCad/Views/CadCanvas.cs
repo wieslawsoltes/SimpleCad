@@ -47,6 +47,11 @@ public partial class CadCanvas : Control, ICanvasService
         Drawing.Render(context, new Rect(0, 0, Bounds.Width, Bounds.Height));
     }
 
+    public double GetHeight()
+    {
+        return Bounds.Height;
+    }
+
     public void Invalidate()
     {
         InvalidateVisual();

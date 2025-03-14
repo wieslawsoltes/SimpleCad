@@ -94,12 +94,16 @@ public class LineTool : Tool
 
     private LineEntity Add(Point position)
     {
+        var (x, y) = position;
+        var height = CanvasService.GetHeight();
+        y = height - y;
+
         var entity = new LineEntity
         {
-            StartPointX = position.X,
-            StartPointY = position.Y,
-            EndPointX = position.X,
-            EndPointY = position.Y,
+            StartPointX = x,
+            StartPointY = y,
+            EndPointX = x,
+            EndPointY = y,
         };
 
         DrawingService.Add(entity);
@@ -111,26 +115,30 @@ public class LineTool : Tool
     {
         var position = e.GetPosition(sender as Visual);
 
+        var (x, y) = position;
+        var height = CanvasService.GetHeight();
+        y = height - y;
+        
         if (e.KeyModifiers == KeyModifiers.Shift)
         {
-            var deltaX = Math.Abs(position.X - entity.StartPointX);
-            var deltaY = Math.Abs(position.Y - entity.StartPointY);
+            var deltaX = Math.Abs(x - entity.StartPointX);
+            var deltaY = Math.Abs(y - entity.StartPointY);
 
             if (deltaX > deltaY)
             {
-                entity.EndPointX = position.X;
+                entity.EndPointX = x;
                 entity.EndPointY = entity.StartPointY;
             }
             else
             {
                 entity.EndPointX = entity.StartPointX;
-                entity.EndPointY = position.Y;
+                entity.EndPointY = y;
             }
         }
         else
         {
-            entity.EndPointX = position.X;
-            entity.EndPointY = position.Y;
+            entity.EndPointX = x;
+            entity.EndPointY = y;
         }
     }
 }
@@ -177,6 +185,9 @@ public class DxfDrawing : ViewModelBase
 
     public void Render(DrawingContext context, Rect bounds)
     {
+        using var t = context.PushTransform(Matrix.CreateTranslation(0.0, bounds.Height));
+        using var s = context.PushTransform(Matrix.CreateScale(1.0, -1.0));
+
         context.FillRectangle(Brushes.Black, bounds);
 
         foreach (var entity in Entities)
@@ -193,15 +204,17 @@ public interface IDrawingService
 
 public interface ICanvasService
 {
+    double GetHeight();
+    
     void Invalidate();
 }
 
 public class DxfWriterService
 {
-    public void WriteDxfDrawing(StreamWriter writer, DxfDrawing dxfDrawing, double height)
+    public void WriteDxfDrawing(StreamWriter writer, DxfDrawing dxfDrawing)
     {
         WriteHeaderSection(writer);
-        WriteEntitiesSection(writer, height, dxfDrawing.Entities);
+        WriteEntitiesSection(writer, dxfDrawing.Entities);
         WriteEofSection(writer);
     }
     
@@ -218,7 +231,7 @@ public class DxfWriterService
         writer.WriteLine("ENDSEC");
     }
     
-    private void WriteEntitiesSection(StreamWriter writer, double height, List<Entity> entities)
+    private void WriteEntitiesSection(StreamWriter writer, List<Entity> entities)
     {
         writer.WriteLine("0");
         writer.WriteLine("SECTION");
@@ -230,7 +243,7 @@ public class DxfWriterService
             switch (entity)
             {
                 case LineEntity lineEntity:
-                    WriteLineEntity(writer, height, lineEntity);
+                    WriteLineEntity(writer, lineEntity);
                     break;
             }
         }
@@ -239,7 +252,7 @@ public class DxfWriterService
         writer.WriteLine("ENDSEC");
     }
 
-    private void WriteLineEntity(StreamWriter writer, double height, LineEntity lineEntity)
+    private void WriteLineEntity(StreamWriter writer, LineEntity lineEntity)
     {
         writer.WriteLine("0");
         writer.WriteLine("LINE");
@@ -248,13 +261,13 @@ public class DxfWriterService
         writer.WriteLine(lineEntity.StartPointX.ToString(CultureInfo.InvariantCulture));
 
         writer.WriteLine("20");
-        writer.WriteLine((height - lineEntity.StartPointY).ToString(CultureInfo.InvariantCulture));
+        writer.WriteLine(lineEntity.StartPointY.ToString(CultureInfo.InvariantCulture));
 
         writer.WriteLine("11");
         writer.WriteLine(lineEntity.EndPointX.ToString(CultureInfo.InvariantCulture));
 
         writer.WriteLine("21");
-        writer.WriteLine((height - lineEntity.EndPointY).ToString(CultureInfo.InvariantCulture));
+        writer.WriteLine(lineEntity.EndPointY.ToString(CultureInfo.InvariantCulture));
     }
 
     private void WriteEofSection(StreamWriter writer)
@@ -266,12 +279,75 @@ public class DxfWriterService
 
 public class DxfReaderService
 {
-    public DxfDrawing ReadDxfDrawing(StreamReader reader, double height)
+    private void ReadDxfLineEntity(LineEntity lineEntity, int code, string data)
+    {
+        if (code == 10)
+        {
+            lineEntity.StartPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
+        }
+        else if (code == 20)
+        {
+            lineEntity.StartPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
+        }
+        else if (code == 11)
+        {
+            lineEntity.EndPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);   
+        }
+        else if (code == 21)
+        {
+            lineEntity.EndPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture); 
+        }
+    }
+
+    public DxfDrawing ReadDxfDrawing(StreamReader reader)
     {
         var dxfDrawing = new DxfDrawing();
 
-        // TODO:
-        
+        object? currentObject = null;
+
+        while (true)
+        {
+            var codeLine = reader.ReadLine();
+            var dataLine = reader.ReadLine();
+
+            if (string.IsNullOrEmpty(codeLine) || dataLine is null)
+            {
+                break;
+            }
+
+            var code = int.Parse(codeLine.Trim(), CultureInfo.InvariantCulture);
+
+            if (code == 0)
+            {
+                currentObject = null;
+
+                if (dataLine == "EOF")
+                {
+                }
+                else if (dataLine == "SECTION")
+                {
+                    
+                }
+                else if (dataLine == "ENDSEC")
+                {
+                    
+                }
+                else if (dataLine == "LINE")
+                {
+                    var lineEntity = new LineEntity();
+                    dxfDrawing.Entities.Add(lineEntity);
+                    currentObject = lineEntity;
+                }
+            }
+            else
+            {
+                if (currentObject is LineEntity lineEntity)
+                {
+                    ReadDxfLineEntity(lineEntity, code, dataLine);
+                }
+            }
+        } 
+
         return dxfDrawing;
     }
 }
@@ -307,21 +383,21 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
         DxfDrawing.Render(context, bounds);
     }
 
-    public void Open(Stream stream, double height)
+    public void Open(Stream stream)
     {
         using var reader = new StreamReader(stream);
 
-        var dxfDrawing = DxfReaderService.ReadDxfDrawing(reader, height);
+        var dxfDrawing = DxfReaderService.ReadDxfDrawing(reader);
 
         DxfDrawing = dxfDrawing;
 
         CanvasService.Invalidate();
     }
 
-    public void SaveAs(Stream stream, double height)
+    public void SaveAs(Stream stream)
     {
         using var writer = new StreamWriter(stream);
 
-        DxfWriterService.WriteDxfDrawing(writer, DxfDrawing, height);
+        DxfWriterService.WriteDxfDrawing(writer, DxfDrawing);
     }
 }
