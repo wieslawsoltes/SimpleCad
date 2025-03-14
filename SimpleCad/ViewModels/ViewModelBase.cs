@@ -145,16 +145,17 @@ public class LineTool : Tool
 
 public abstract class DxfEntity : ViewModelBase
 {
-    public abstract void Render(DrawingContext context);
+    public abstract void Render(DrawingContext context, double zoomFactor);
 }
 
 public class DxfLineEntity : DxfEntity
 {
     private Pen _pen;
+    private double _thickness = 1.0;
 
     public DxfLineEntity()
     {
-        _pen = new Pen(Brushes.White, 1);
+        _pen = new Pen(Brushes.White, _thickness);
     }
 
     public double StartPointX { get; set; }
@@ -165,8 +166,10 @@ public class DxfLineEntity : DxfEntity
     
     public double EndPointY { get; set; }
 
-    public override void Render(DrawingContext context)
+    public override void Render(DrawingContext context, double zoomFactor)
     {
+        _pen.Thickness = _thickness / zoomFactor;
+        
         context.DrawLine(
             _pen, 
             new Point(StartPointX, StartPointY), 
@@ -183,16 +186,14 @@ public class DxfDrawing : ViewModelBase
 
     public List<DxfEntity> Entities { get; set; }
 
-    public void Render(DrawingContext context, Rect bounds)
+    public void Render(DrawingContext context, Rect bounds, double zoomFactor)
     {
         using var t = context.PushTransform(Matrix.CreateTranslation(0.0, bounds.Height));
         using var s = context.PushTransform(Matrix.CreateScale(1.0, -1.0));
 
-        context.FillRectangle(Brushes.Black, bounds);
-
         foreach (var entity in Entities)
         {
-            entity.Render(context);
+            entity.Render(context, zoomFactor);
         }
     }
 }
@@ -354,6 +355,15 @@ public class DxfReaderService
 
 public class DrawingViewModel : ViewModelBase, IDrawingService
 {
+    private const double _baseZoomFactor = 1.15;
+    private const int _minZoomLevel = -20;
+    private const int _maxZoomLevel = 40;
+    private int _currentZoomLevel;
+    private double _zoomFactor = 1.0;
+    private Matrix _transform = Matrix.Identity;
+    private bool _isPanning;
+    private Point _lastPanPosition;
+
     public DrawingViewModel(ICanvasService canvasService)
     {
         CanvasService = canvasService;
@@ -373,6 +383,116 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
 
     public DxfDrawing DxfDrawing { get; private set; }
 
+    public void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (TryStartPan(sender, e))
+        {
+            return;
+        }
+
+        CurrentTool?.OnPointerPressed(sender, e);
+    }
+
+    public void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (TryEndPan(e))
+        {
+            return;
+        }
+
+        CurrentTool?.OnPointerReleased(sender, e);
+    }
+
+    public void OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (TryMovePan(sender, e))
+        {
+            CanvasService.Invalidate();
+
+            return;
+        }
+
+        CurrentTool?.OnPointerMoved(sender, e);
+    }
+
+    public void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        Zoom(sender, e);
+
+        CurrentTool?.OnPointerWheelChanged(sender, e);
+    }
+
+    private bool TryStartPan(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(null).Properties.IsMiddleButtonPressed)
+        {
+            return false;
+        }
+
+        _isPanning = true;
+        _lastPanPosition = e.GetPosition(sender as Visual);
+        e.Handled = true;
+
+        return true;
+    }
+
+    private bool TryEndPan(PointerReleasedEventArgs e)
+    {
+        if (!_isPanning)
+        {
+            return false;
+        }
+        
+        _isPanning = false;
+        e.Handled = true;
+
+        return true;
+    }
+
+    private bool TryMovePan(object? sender, PointerEventArgs e)
+    {
+        if (!_isPanning)
+        {
+            return false;
+        }
+
+        var position = e.GetPosition(sender as Visual);
+        var delta = position - _lastPanPosition;
+
+        _transform *= Matrix.CreateTranslation(delta.X, delta.Y);
+            
+        _lastPanPosition = position;
+
+        e.Handled = true;
+
+        return true;
+    }
+
+    private void Zoom(object? sender, PointerWheelEventArgs e)
+    {
+        var position = e.GetPosition(sender as Visual);
+        var zoomDelta = e.Delta.Y > 0 ? 1 : -1;
+
+        var newZoomLevel = Math.Clamp(_currentZoomLevel + zoomDelta, _minZoomLevel, _maxZoomLevel);
+        if (newZoomLevel == _currentZoomLevel)
+        {
+            return;
+        }
+
+        var oldZoomFactor = _zoomFactor;
+        _currentZoomLevel = newZoomLevel;
+        _zoomFactor = Math.Pow(_baseZoomFactor, _currentZoomLevel);
+
+        var scaleFactor = _zoomFactor / oldZoomFactor;
+
+        _transform = _transform * 
+                     Matrix.CreateTranslation(-position.X, -position.Y) * 
+                     Matrix.CreateScale(scaleFactor, scaleFactor) * 
+                     Matrix.CreateTranslation(position.X, position.Y);
+
+        CanvasService.Invalidate();
+    }
+
     public void Add(DxfEntity dxfEntity)
     {
         DxfDrawing.Entities.Add(dxfEntity);
@@ -380,7 +500,11 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
     
     public void Render(DrawingContext context, Rect bounds)
     {
-        DxfDrawing.Render(context, bounds);
+        context.FillRectangle(Brushes.Black, bounds);
+
+        using var _ = context.PushTransform(_transform);
+
+        DxfDrawing.Render(context, bounds, _transform.M11);
     }
 
     public void Open(Stream stream)

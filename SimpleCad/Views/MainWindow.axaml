@@ -21,9 +21,14 @@
     
     <Menu Grid.Row="0">
       <MenuItem Header="_File">
-        <MenuItem Name="FileOpen" Header="Open..." />
+        <MenuItem Name="FileOpen" Header="_Open..." />
         <Separator />
-        <MenuItem Name="FileSaveAs" Header="Save As..." />
+        <MenuItem Name="FileSaveAs" Header="Save _As..." />
+      </MenuItem>
+      <MenuItem Header="_Tool">
+        <MenuItem Name="ToolSelection" Header="_Selection" />
+        <Separator />
+        <MenuItem Name="ToolLine" Header="_Line" />
       </MenuItem>
     </Menu>
   
