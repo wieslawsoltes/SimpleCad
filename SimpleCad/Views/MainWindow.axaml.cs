@@ -14,9 +14,31 @@ public partial class MainWindow : Window
         FileSaveAs.Click += FileSaveAsOnClick;
     }
 
-    private void FileOpenOnClick(object? sender, RoutedEventArgs e)
+    private async void FileOpenOnClick(object? sender, RoutedEventArgs e)
     {
+        var storageProvider = StorageProvider;
 
+        var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open",
+            AllowMultiple = false,
+            FileTypeFilter = 
+            [
+                new FilePickerFileType("DXF Files") { Patterns = ["*.dxf"] }
+            ]
+        });
+
+        if (files.Count <= 0)
+        {
+            return;
+        }
+
+        foreach (var file in files)
+        {
+            await using var stream = await file.OpenReadAsync();
+
+            CadCanvas.Drawing.Open(stream, CadCanvas.Bounds.Height);
+        }
     }
     
     private async void FileSaveAsOnClick(object? sender, RoutedEventArgs e)
@@ -33,10 +55,13 @@ public partial class MainWindow : Window
             ]
         });
 
-        if (file is not null)
+        if (file is null)
         {
-            await using var stream = await file.OpenWriteAsync();
-            CadCanvas.Drawing.SaveAs(stream, CadCanvas.Bounds.Height);
+            return;
         }
+
+        await using var stream = await file.OpenWriteAsync();
+
+        CadCanvas.Drawing.SaveAs(stream, CadCanvas.Bounds.Height);
     }
 }

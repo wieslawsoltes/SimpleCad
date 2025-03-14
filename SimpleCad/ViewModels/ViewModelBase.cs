@@ -166,6 +166,26 @@ public class LineEntity : Entity
     }
 }
 
+public class DxfDrawing : ViewModelBase
+{
+    public DxfDrawing()
+    {
+        Entities = new List<Entity>();
+    }
+
+    public List<Entity> Entities { get; set; }
+
+    public void Render(DrawingContext context, Rect bounds)
+    {
+        context.FillRectangle(Brushes.Black, bounds);
+
+        foreach (var entity in Entities)
+        {
+            entity.Render(context);
+        }
+    }
+}
+
 public interface IDrawingService
 {
     void Add(Entity entity);
@@ -176,70 +196,42 @@ public interface ICanvasService
     void Invalidate();
 }
 
-public class DrawingViewModel : ViewModelBase, IDrawingService
+public class DxfWriterService
 {
-    public DrawingViewModel(ICanvasService canvasService)
+    public void WriteDxfDrawing(StreamWriter writer, DxfDrawing dxfDrawing, double height)
     {
-        CanvasService = canvasService;
-        CurrentTool = new LineTool(this, canvasService);
-        Entities = new List<Entity>();
-    }
-
-    public ICanvasService CanvasService { get; }
-
-    public Tool? CurrentTool { get; set; }
-
-    public List<Entity> Entities { get; set; }
-
-    public void Add(Entity entity)
-    {
-        Entities.Add(entity);
+        WriteHeaderSection(writer);
+        WriteEntitiesSection(writer, height, dxfDrawing.Entities);
+        WriteEofSection(writer);
     }
     
-    public void Render(DrawingContext context, Rect bounds)
+    private void WriteHeaderSection(StreamWriter writer)
     {
-        context.FillRectangle(Brushes.Black, bounds);
+        writer.WriteLine("0");
+        writer.WriteLine("SECTION");
+        writer.WriteLine("2");
+        writer.WriteLine("HEADER");
 
-        foreach (var entity in Entities)
-        {
-            entity.Render(context);
-        }
+        // TODO: Variables
+
+        writer.WriteLine("0");
+        writer.WriteLine("ENDSEC");
     }
-
-    public void SaveAs(Stream stream, double height)
-    {
-        using var writer = new StreamWriter(stream);
-
-        WriteEntities(writer, height);
-
-        WriteEof(writer);
-    }
-
-    private void WriteEntities(StreamWriter writer, double height)
+    
+    private void WriteEntitiesSection(StreamWriter writer, double height, List<Entity> entities)
     {
         writer.WriteLine("0");
         writer.WriteLine("SECTION");
         writer.WriteLine("2");
         writer.WriteLine("ENTITIES");
 
-        foreach (var entity in Entities)
+        foreach (var entity in entities)
         {
-            if (entity is LineEntity lineEntity)
+            switch (entity)
             {
-                writer.WriteLine("0");
-                writer.WriteLine("LINE");
-
-                writer.WriteLine("10");
-                writer.WriteLine(lineEntity.StartPointX.ToString(CultureInfo.InvariantCulture));
-
-                writer.WriteLine("20");
-                writer.WriteLine((height - lineEntity.StartPointY).ToString(CultureInfo.InvariantCulture));
-
-                writer.WriteLine("11");
-                writer.WriteLine(lineEntity.EndPointX.ToString(CultureInfo.InvariantCulture));
-
-                writer.WriteLine("21");
-                writer.WriteLine((height - lineEntity.EndPointY).ToString(CultureInfo.InvariantCulture));
+                case LineEntity lineEntity:
+                    WriteLineEntity(writer, height, lineEntity);
+                    break;
             }
         }
 
@@ -247,9 +239,89 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
         writer.WriteLine("ENDSEC");
     }
 
-    private static void WriteEof(StreamWriter writer)
+    private void WriteLineEntity(StreamWriter writer, double height, LineEntity lineEntity)
+    {
+        writer.WriteLine("0");
+        writer.WriteLine("LINE");
+
+        writer.WriteLine("10");
+        writer.WriteLine(lineEntity.StartPointX.ToString(CultureInfo.InvariantCulture));
+
+        writer.WriteLine("20");
+        writer.WriteLine((height - lineEntity.StartPointY).ToString(CultureInfo.InvariantCulture));
+
+        writer.WriteLine("11");
+        writer.WriteLine(lineEntity.EndPointX.ToString(CultureInfo.InvariantCulture));
+
+        writer.WriteLine("21");
+        writer.WriteLine((height - lineEntity.EndPointY).ToString(CultureInfo.InvariantCulture));
+    }
+
+    private void WriteEofSection(StreamWriter writer)
     {
         writer.WriteLine("0");
         writer.WriteLine("EOF");
+    }
+}
+
+public class DxfReaderService
+{
+    public DxfDrawing ReadDxfDrawing(StreamReader reader, double height)
+    {
+        var dxfDrawing = new DxfDrawing();
+
+        // TODO:
+        
+        return dxfDrawing;
+    }
+}
+
+public class DrawingViewModel : ViewModelBase, IDrawingService
+{
+    public DrawingViewModel(ICanvasService canvasService)
+    {
+        CanvasService = canvasService;
+        DxfWriterService = new DxfWriterService();
+        DxfReaderService = new DxfReaderService();
+        CurrentTool = new LineTool(this, canvasService);
+        DxfDrawing = new DxfDrawing();
+    }
+
+    public ICanvasService CanvasService { get; }
+
+    public DxfWriterService DxfWriterService { get; }
+
+    public DxfReaderService DxfReaderService { get; }
+
+    public Tool? CurrentTool { get; set; }
+
+    public DxfDrawing DxfDrawing { get; private set; }
+
+    public void Add(Entity entity)
+    {
+        DxfDrawing.Entities.Add(entity);
+    }
+    
+    public void Render(DrawingContext context, Rect bounds)
+    {
+        DxfDrawing.Render(context, bounds);
+    }
+
+    public void Open(Stream stream, double height)
+    {
+        using var reader = new StreamReader(stream);
+
+        var dxfDrawing = DxfReaderService.ReadDxfDrawing(reader, height);
+
+        DxfDrawing = dxfDrawing;
+
+        CanvasService.Invalidate();
+    }
+
+    public void SaveAs(Stream stream, double height)
+    {
+        using var writer = new StreamWriter(stream);
+
+        DxfWriterService.WriteDxfDrawing(writer, DxfDrawing, height);
     }
 }
