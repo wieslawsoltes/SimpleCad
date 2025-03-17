@@ -14,7 +14,7 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
         PanAndZoomService = new PanAndZoomService();
         DxfWriterService = new DxfWriterService();
         DxfReaderService = new DxfReaderService();
-        CurrentTool = new LineTool(this, canvasService);
+        CurrentTool = new LineTool(this, canvasService, PanAndZoomService);
         DxfEntities = new DxfEntities();
     }
 

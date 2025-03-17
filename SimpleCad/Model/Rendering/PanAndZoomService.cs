@@ -5,7 +5,7 @@ using SkiaSharp;
 
 namespace SimpleCad.Model;
 
-public class PanAndZoomService
+public class PanAndZoomService : IPanAndZoomService
 {
     private const double _baseZoomFactor = 1.15;
     private const int _minZoomLevel = -20;
