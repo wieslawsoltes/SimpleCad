@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using SimpleCad.Model;
 using SimpleCad.ViewModels;
 
 namespace SimpleCad.Views;
@@ -46,7 +47,7 @@ public partial class CadCanvas : Control, ICanvasService
         
         context.FillRectangle(Brushes.Transparent, Bounds);
 
-        context.Custom(new CustomDrawOperation(Bounds, Drawing));
+        context.Custom(new DrawingCustomDrawOperation(Bounds, Drawing));
     }
 
     public double GetHeight()
