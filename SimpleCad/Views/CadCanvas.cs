@@ -43,8 +43,10 @@ public partial class CadCanvas : Control, ICanvasService
     public override void Render(DrawingContext context)
     {
         base.Render(context);
+        
+        context.FillRectangle(Brushes.Transparent, Bounds);
 
-        Drawing.Render(context, new Rect(0, 0, Bounds.Width, Bounds.Height));
+        context.Custom(new CustomDrawOperation(Bounds, Drawing));
     }
 
     public double GetHeight()

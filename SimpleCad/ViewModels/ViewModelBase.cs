@@ -5,7 +5,11 @@ using System.IO;
 using Avalonia;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Platform;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
 using ReactiveUI;
+using SkiaSharp;
 
 namespace SimpleCad.ViewModels;
 
@@ -105,6 +109,8 @@ public class LineTool : Tool
             EndPointX = x,
             EndPointY = y,
         };
+        
+        entity.Invalidate();
 
         DrawingService.Add(entity);
 
@@ -140,22 +146,35 @@ public class LineTool : Tool
             entity.EndPointX = x;
             entity.EndPointY = y;
         }
+        
+        entity.Invalidate();
     }
 }
 
 public abstract class DxfEntity : ViewModelBase
 {
-    public abstract void Render(DrawingContext context, double zoomFactor);
+    public abstract void Render(SKCanvas context, double zoomFactor);
+
+    public abstract void Invalidate();
+
+    public abstract bool Contains(float x, float y);
 }
 
 public class DxfLineEntity : DxfEntity
 {
-    private Pen _pen;
+    private SKPaint _pen;
     private double _thickness = 1.0;
+    private SKPath? _path;
+    private SKPath? _fillPath;
 
     public DxfLineEntity()
     {
-        _pen = new Pen(Brushes.White, _thickness);
+        _pen = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,
+            Color = SKColors.White,
+            StrokeWidth = (float)_thickness,
+        };
     }
 
     public double StartPointX { get; set; }
@@ -166,14 +185,42 @@ public class DxfLineEntity : DxfEntity
     
     public double EndPointY { get; set; }
 
-    public override void Render(DrawingContext context, double zoomFactor)
+    public override void Render(SKCanvas context, double zoomFactor)
     {
-        _pen.Thickness = _thickness / zoomFactor;
-        
-        context.DrawLine(
-            _pen, 
-            new Point(StartPointX, StartPointY), 
-            new Point(EndPointX, EndPointY));
+        if (_path is null)
+        {
+            return;
+        }
+
+        _pen.StrokeWidth = (float)(_thickness / zoomFactor);
+
+        context.DrawPath(_path, _pen);
+    }
+
+    public override void Invalidate()
+    {
+        _path = CreatePath();
+        _fillPath = _pen.GetFillPath(_path);
+    }
+
+    public override bool Contains(float x, float y)
+    {
+        if (_fillPath is null)
+        {
+            return false;
+        }
+
+        return _fillPath.Contains(x, y);
+    }
+
+    private SKPath CreatePath()
+    {
+        var path = new SKPath();
+
+        path.MoveTo((float)StartPointX, (float)StartPointY);
+        path.LineTo((float)EndPointX, (float)EndPointY);
+
+        return path;
     }
 }
 
@@ -186,15 +233,27 @@ public class DxfDrawing : ViewModelBase
 
     public List<DxfEntity> Entities { get; set; }
 
-    public void Render(DrawingContext context, Rect bounds, double zoomFactor)
+    public void Invalidate()
     {
-        using var t = context.PushTransform(Matrix.CreateTranslation(0.0, bounds.Height));
-        using var s = context.PushTransform(Matrix.CreateScale(1.0, -1.0));
+        foreach (var entity in Entities)
+        {
+            entity.Invalidate();
+        }
+    }
+
+    public void Render(SKCanvas context, Rect bounds, double zoomFactor)
+    {
+        context.Save();
+
+        context.Translate((float)0.0, (float)bounds.Height);
+        context.Scale((float)1.0, (float)-1.0);
 
         foreach (var entity in Entities)
         {
             entity.Render(context, zoomFactor);
         }
+        
+        context.Restore();
     }
 }
 
@@ -360,7 +419,7 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
     private const int _maxZoomLevel = 40;
     private int _currentZoomLevel;
     private double _zoomFactor = 1.0;
-    private Matrix _transform = Matrix.Identity;
+    private SKMatrix _transform = SKMatrix.Identity;
     private bool _isPanning;
     private Point _lastPanPosition;
 
@@ -459,8 +518,8 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
         var position = e.GetPosition(sender as Visual);
         var delta = position - _lastPanPosition;
 
-        _transform *= Matrix.CreateTranslation(delta.X, delta.Y);
-            
+        _transform = SKMatrix.Concat(SKMatrix.CreateTranslation((float)delta.X, (float)delta.Y), _transform);
+  
         _lastPanPosition = position;
 
         e.Handled = true;
@@ -485,10 +544,9 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
 
         var scaleFactor = _zoomFactor / oldZoomFactor;
 
-        _transform = _transform * 
-                     Matrix.CreateTranslation(-position.X, -position.Y) * 
-                     Matrix.CreateScale(scaleFactor, scaleFactor) * 
-                     Matrix.CreateTranslation(position.X, position.Y);
+        _transform = SKMatrix.Concat(SKMatrix.CreateTranslation((float)-position.X, (float)-position.Y), _transform);
+        _transform = SKMatrix.Concat(SKMatrix.CreateScale((float)scaleFactor, (float)scaleFactor), _transform);
+        _transform = SKMatrix.Concat(SKMatrix.CreateTranslation((float)position.X, (float)position.Y), _transform);
 
         CanvasService.Invalidate();
     }
@@ -498,13 +556,29 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
         DxfDrawing.Entities.Add(dxfEntity);
     }
     
-    public void Render(DrawingContext context, Rect bounds)
+    public void Render(SKCanvas context, Rect bounds)
     {
-        context.FillRectangle(Brushes.Black, bounds);
+        var paint = new SKPaint
+        {
+            Color = SKColors.Black, 
+            Style = SKPaintStyle.Fill
+        };
 
-        using var _ = context.PushTransform(_transform);
+        context.Save();
 
-        DxfDrawing.Render(context, bounds, _transform.M11);
+        context.DrawRect(new SKRect(
+            (float)bounds.X, 
+            (float)bounds.Y, 
+            (float)bounds.Width, 
+            (float)bounds.Height), 
+            paint);
+
+        context.Translate(_transform.TransX, _transform.TransY);
+        context.Scale(_transform.ScaleX, _transform.ScaleY);
+
+        DxfDrawing.Render(context, bounds, _transform.ScaleX);
+        
+        context.Restore();
     }
 
     public void Open(Stream stream)
@@ -513,6 +587,8 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
 
         var dxfDrawing = DxfReaderService.ReadDxfDrawing(reader);
 
+        dxfDrawing.Invalidate();
+        
         DxfDrawing = dxfDrawing;
 
         CanvasService.Invalidate();
@@ -523,5 +599,48 @@ public class DrawingViewModel : ViewModelBase, IDrawingService
         using var writer = new StreamWriter(stream);
 
         DxfWriterService.WriteDxfDrawing(writer, DxfDrawing);
+    }
+}
+
+public class CustomDrawOperation : ICustomDrawOperation
+{
+    private readonly Rect _bounds;
+    private readonly DrawingViewModel _drawingViewModel;
+
+    public CustomDrawOperation(Rect bounds, DrawingViewModel drawingViewModel)
+    {
+        _bounds = bounds;
+        _drawingViewModel = drawingViewModel;
+    }
+
+    public Rect Bounds => _bounds;
+
+    public bool Equals(ICustomDrawOperation? other)
+    {
+        return false;
+    }
+
+    public void Dispose()
+    {
+    }
+
+    public bool HitTest(Point p)
+    {
+        return false;
+    }
+
+    public void Render(ImmediateDrawingContext context)
+    {
+        var skiaSharpApiLeaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+        if (skiaSharpApiLeaseFeature is null)
+        {
+            return;
+        }
+        
+        using var skiaSharpApiLease = skiaSharpApiLeaseFeature.Lease();
+
+        _drawingViewModel.Render(
+            skiaSharpApiLease.SkCanvas, 
+            new Rect(0, 0, _bounds.Width, _bounds.Height));
     }
 }
