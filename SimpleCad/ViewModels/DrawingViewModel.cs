@@ -81,7 +81,7 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
     {
         var paint = new SKPaint
         {
-            Color = SKColors.Black, 
+            Color = SKColor.Parse("#212830"), 
             Style = SKPaintStyle.Fill
         };
 
