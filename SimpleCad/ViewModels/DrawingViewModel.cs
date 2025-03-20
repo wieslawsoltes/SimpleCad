@@ -1,6 +1,7 @@
 using System.IO;
 using Avalonia;
 using Avalonia.Input;
+using DynamicData;
 using SimpleCad.Model;
 using SkiaSharp;
 
@@ -15,7 +16,7 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
         DxfWriterService = new DxfWriterService();
         DxfReaderService = new DxfReaderService();
         CurrentTool = new LineTool(this, canvasService, PanAndZoomService);
-        DxfEntities = new DxfEntities();
+        DxfFile = DxfFile.Create();
     }
 
     public ICanvasService CanvasService { get; }
@@ -28,7 +29,7 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
 
     public Tool? CurrentTool { get; set; }
 
-    public DxfEntities DxfEntities { get; private set; }
+    public DxfFile DxfFile { get; private set; }
 
     public void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -74,7 +75,7 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
 
     public void Add(DxfEntity dxfEntity)
     {
-        DxfEntities.Entities.Add(dxfEntity);
+        DxfFile.AddEntity(dxfEntity);
     }
     
     public void Render(SKCanvas context, Rect bounds)
@@ -99,7 +100,7 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
         context.Translate(transform.TransX, transform.TransY);
         context.Scale(transform.ScaleX, transform.ScaleY);
 
-        DxfEntities.Render(context, bounds, transform.ScaleX);
+        DxfFile.Render(context, bounds, transform.ScaleX);
         
         context.Restore();
     }
@@ -108,11 +109,18 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
     {
         using var reader = new StreamReader(stream);
 
-        var dxfDrawing = DxfReaderService.ReadDxfDrawing(reader);
+        var dxfFile = DxfReaderService.ReadDxfFile(reader);
 
-        dxfDrawing.Invalidate();
+        dxfFile.UpdateObject();
         
-        DxfEntities = dxfDrawing;
+        // TODO: Invalidate entities children
+        var entities = dxfFile.GetEntities();
+        foreach (var entity in entities)
+        {
+            entity.Invalidate();
+        }
+
+        DxfFile = dxfFile;
 
         CanvasService.Invalidate();
     }
@@ -121,6 +129,6 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
     {
         using var writer = new StreamWriter(stream);
 
-        DxfWriterService.WriteDxfDrawing(writer, DxfEntities);
+        DxfWriterService.WriteDxfFile(writer, DxfFile);
     }
 }

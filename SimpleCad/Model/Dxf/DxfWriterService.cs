@@ -6,13 +6,29 @@ namespace SimpleCad.Model;
 
 public class DxfWriterService
 {
-    public void WriteDxfDrawing(StreamWriter writer, DxfEntities dxfEntities)
+    public void WriteDxfFile(StreamWriter writer, DxfFile dxfFile)
     {
-        WriteHeaderSection(writer);
-        WriteEntitiesSection(writer, dxfEntities.Entities);
-        WriteEofSection(writer);
+        foreach (var dxfObject in dxfFile.Children)
+        {
+            WriteDxfObject(writer, dxfObject);
+        }
+    }
+
+    private void WriteDxfObject(StreamWriter writer, DxfObject dxfObject)
+    {
+        foreach (var property in dxfObject.Properties)
+        {
+            writer.WriteLine(property.Code);
+            writer.WriteLine(property.Data);
+        }
+        
+        foreach (var dxfObjectChild in dxfObject.Children)
+        {
+            WriteDxfObject(writer, dxfObjectChild);
+        }  
     }
     
+    /*
     private void WriteHeaderSection(StreamWriter writer)
     {
         writer.WriteLine("0");
@@ -70,4 +86,5 @@ public class DxfWriterService
         writer.WriteLine("0");
         writer.WriteLine("EOF");
     }
+    */
 }

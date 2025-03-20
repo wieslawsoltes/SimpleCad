@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Input;
 using SkiaSharp;
@@ -7,7 +8,7 @@ namespace SimpleCad.Model;
 
 public class LineTool : Tool
 {
-    private DxfLineEntity? _currentEntity;
+    private DxfLine? _currentEntity;
     
     public LineTool(IDrawingService drawingService, ICanvasService canvasService, IPanAndZoomService panAndZoomService)
         : base(drawingService, canvasService, panAndZoomService)
@@ -36,6 +37,9 @@ public class LineTool : Tool
     
         Move(_currentEntity, sender, e);
 
+        // TODO:
+        _currentEntity.UpdateProperties();
+
         CanvasService.Invalidate();
 
         _currentEntity = null;
@@ -55,20 +59,20 @@ public class LineTool : Tool
         CanvasService.Invalidate();
     }
 
-    private DxfLineEntity Add(Point position)
+    private DxfLine Add(Point position)
     {
         var (x, y) = position;
         var height = CanvasService.GetHeight();
         y = height - y;
 
-        var entity = new DxfLineEntity
+        var entity = new DxfLine
         {
             StartPointX = x,
             StartPointY = y,
             EndPointX = x,
             EndPointY = y,
         };
-        
+
         entity.Invalidate();
 
         DrawingService.Add(entity);
@@ -76,7 +80,7 @@ public class LineTool : Tool
         return entity;
     }
 
-    private void Move(DxfLineEntity entity, object? sender, PointerEventArgs e)
+    private void Move(DxfLine entity, object? sender, PointerEventArgs e)
     {
         var position = Map(e.GetPosition(sender as Visual));
 

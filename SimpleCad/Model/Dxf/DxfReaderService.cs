@@ -1,35 +1,23 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Linq;
+using DynamicData;
 
 namespace SimpleCad.Model;
 
 public class DxfReaderService
 {
-    private void ReadDxfLineEntity(DxfLineEntity dxfLineEntity, int code, string data)
+    public DxfFile ReadDxfFile(StreamReader reader)
     {
-        if (code == 10)
-        {
-            dxfLineEntity.StartPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
-        }
-        else if (code == 20)
-        {
-            dxfLineEntity.StartPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture);
-        }
-        else if (code == 11)
-        {
-            dxfLineEntity.EndPointX = double.Parse(data.Trim(), CultureInfo.InvariantCulture);   
-        }
-        else if (code == 21)
-        {
-            dxfLineEntity.EndPointY = double.Parse(data.Trim(), CultureInfo.InvariantCulture); 
-        }
-    }
+        var dxfFile = new DxfFile();
 
-    public DxfEntities ReadDxfDrawing(StreamReader reader)
-    {
-        var dxfEntities = new DxfEntities();
+        var objects = new Stack<DxfObject>();
 
-        object? currentObject = null;
+        objects.Push(dxfFile);
+        
+        var canPop = false;
 
         while (true)
         {
@@ -45,35 +33,188 @@ public class DxfReaderService
 
             if (code == 0)
             {
-                currentObject = null;
+                if (dataLine == "SECTION")
+                {
+                    var dxfSection = new DxfSection();
 
-                if (dataLine == "EOF")
-                {
-                }
-                else if (dataLine == "SECTION")
-                {
-                    
+                    objects.Peek().Children.Add(dxfSection);
+                    objects.Push(dxfSection);
+                    canPop = false;
                 }
                 else if (dataLine == "ENDSEC")
                 {
-                    
+                    if (canPop)
+                    {
+                        objects.Pop();
+                        canPop = false;
+                    }
+
+                    var dxfEndsec = new DxfEndsec();
+
+                    objects.Peek().Children.Add(dxfEndsec);
+                    objects.Pop();
+                    canPop = false;
                 }
-                else if (dataLine == "LINE")
+                else if (dataLine == "TABLE")
                 {
-                    var lineEntity = new DxfLineEntity();
-                    dxfEntities.Entities.Add(lineEntity);
-                    currentObject = lineEntity;
+                    var dxfTable = new DxfTable();
+
+                    objects.Peek().Children.Add(dxfTable);
+                    objects.Push(dxfTable);
+                    canPop = false;
+                }
+                else if (dataLine == "ENDTAB")
+                {
+                    if (canPop)
+                    {
+                        objects.Pop();
+                        canPop = false;
+                    }
+
+                    var dxfEndtab = new DxfEndtab();
+
+                    objects.Peek().Children.Add(dxfEndtab);
+                    objects.Pop();
+                    canPop = false;
+                }
+                // TODO: Objects with SEQEND
+                /*
+                else if (dataLine == "SEQEND")
+                {
+                    if (canPop)
+                    {
+                        objects.Pop();
+                        canPop = false;
+                    }
+
+                    var dxfSeqend = new DxfUnknownObject();
+    
+                    // TODO: Remove
+                    dxfSeqend.AddProperty(code, dataLine);
+                    
+                    objects.Peek().Children.Add(dxfSeqend);
+                    //objects.Push(dxfSeqend);
+                    objects.Pop();
+                    canPop = false;
+                }
+                */
+                else if (dataLine == "BLOCK")
+                {
+                    var dxfBlock = new DxfBlock();
+
+                    objects.Peek().Children.Add(dxfBlock);
+                    objects.Push(dxfBlock);
+                    canPop = false;
+                }
+                else if (dataLine == "ENDBLK")
+                {
+                    if (canPop)
+                    {
+                        objects.Pop();
+                        canPop = false;
+                    }
+
+                    var dxfEndblk = new DxfEndblk();
+
+                    objects.Peek().Children.Add(dxfEndblk);
+                    objects.Pop();
+                    canPop = false;
+                }
+                //else if (dataLine == "LINE")
+                //{
+                //    if (currentParent is not null)
+                //    {
+                //        var lineEntity = new DxfLineEntity();
+                //
+                //        currentParent.Children.Add(lineEntity);
+                //
+                //        currentChild = lineEntity;
+                //    }
+                //}
+                else if (dataLine == "EOF")
+                {
+                    var dxfEof = new DxfEof();
+
+                    objects.Peek().Children.Add(dxfEof);
+                    objects.Pop();
+                    canPop = false;
+
+                    break;
+                }
+                else
+                {
+                    if (canPop)
+                    {
+                        objects.Pop();
+                        canPop = false;
+                    }
+                    
+                    DxfObject? dxfUnknownObject = dataLine switch
+                    {
+                        "ARC" => new DxfArc(),
+                        "CIRCLE" => new DxfCircle(),
+                        "DIMENSION" => new DxfDimension(),
+                        "ELLIPSE" => new DxfEllipse(),
+                        "HATCH" => new DxfHatch(),
+                        "IMAGE" => new DxfRasterImage(),
+                        "INSERT" => new DxfBlockReference(),
+                        "LINE" => new DxfLine(),
+                        "LWPOLYLINE" => new DxfPolyline(),
+                        "MTEXT" => new DxfMText(),
+                        "OLE2FRAME" => new DxfOle2Frame(),
+                        "SOLID" => new DxfTrace(),
+                        "SPLINE" => new DxfSpline(),
+                        "TEXT" => new DxfText(),
+                        _ => null
+                    };
+
+                    if (dxfUnknownObject is null)
+                    {
+                        dxfUnknownObject = new DxfUnknownObject();
+
+                        dxfUnknownObject.AddProperty(code, dataLine);
+
+                        Console.WriteLine($"Unknown: {dataLine}");
+                    }
+
+                    try
+                    {
+                        var parent = objects.Peek();
+                        var type = parent.Properties.Count > 0 ? parent.Properties[0].Data : "-";
+                        var name = parent.Properties.Count > 1 ? parent.Properties[1].Data : "-";
+                        // Console.WriteLine($"New Child: {dataLine}, Parent: {parent} ({type} - {name})");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        throw;
+                    }
+
+                    try
+                    {
+                        objects.Peek().Children.Add(dxfUnknownObject);
+                        objects.Push(dxfUnknownObject);
+                     
+                        canPop = true;
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                        throw;
+                    }
                 }
             }
             else
             {
-                if (currentObject is DxfLineEntity lineEntity)
-                {
-                    ReadDxfLineEntity(lineEntity, code, dataLine);
-                }
+                objects.Peek().AddProperty(code, dataLine);
+   
+                //if (currentChild is DxfLineEntity lineEntity)
+                //{
+                //    ReadDxfLineEntity(lineEntity, code, dataLine);
+                //}
             }
         } 
 
-        return dxfEntities;
+        return dxfFile;
     }
 }

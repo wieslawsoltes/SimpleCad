@@ -2,7 +2,7 @@ using SkiaSharp;
 
 namespace SimpleCad.Model;
 
-public abstract class DxfEntity
+public abstract class DxfEntity : DxfObject
 {
     public abstract void Render(SKCanvas context, double zoomFactor);
 
