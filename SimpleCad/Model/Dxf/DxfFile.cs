@@ -36,20 +36,19 @@ public class DxfFile : DxfObject
 
         return dxfFile;
     }
+
+    public DxfSection? Entities => Children
+        .FirstOrDefault(
+            x => x.Properties.FirstOrDefault(p => p.Code == 2 && p.Data == "ENTITIES") != null) as DxfSection;
     
     public IEnumerable<DxfEntity> GetEntities()
     {
-       return Children
-            .FirstOrDefault(x => x.Properties.FirstOrDefault(p => p.Code == 2 && p.Data == "ENTITIES") != null)
-            .Children.OfType<DxfEntity>();
+       return Entities.Children.OfType<DxfEntity>();
     }
 
     public void AddEntity(DxfEntity entity)
     {
-        var entitiesSection = Children
-            .FirstOrDefault(x => x.Properties.FirstOrDefault(p => p.Code == 2 && p.Data == "ENTITIES") != null);
-
-        entitiesSection.Children.Add(entity);
+        Entities.Children.Add(entity);
     }
 
     public void Render(SKCanvas context, Rect bounds, double zoomFactor)
