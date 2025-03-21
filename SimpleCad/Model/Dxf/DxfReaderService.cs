@@ -120,17 +120,6 @@ public class DxfReaderService
                     objects.Pop();
                     canPop = false;
                 }
-                //else if (dataLine == "LINE")
-                //{
-                //    if (currentParent is not null)
-                //    {
-                //        var lineEntity = new DxfLineEntity();
-                //
-                //        currentParent.Children.Add(lineEntity);
-                //
-                //        currentChild = lineEntity;
-                //    }
-                //}
                 else if (dataLine == "EOF")
                 {
                     var dxfEof = new DxfEof();
@@ -207,11 +196,6 @@ public class DxfReaderService
             else
             {
                 objects.Peek().AddProperty(code, dataLine);
-   
-                //if (currentChild is DxfLineEntity lineEntity)
-                //{
-                //    ReadDxfLineEntity(lineEntity, code, dataLine);
-                //}
             }
         } 
 
