@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -106,6 +106,20 @@ public class DxfReaderService
                     objects.Push(dxfBlock);
                     canPop = false;
                 }
+                else if (dataLine == "ENDTAB")
+                {
+                    if (canPop)
+                    {
+                        objects.Pop();
+                        canPop = false;
+                    }
+
+                    var dxfEndtab = new DxfEndtab();
+
+                    objects.Peek().Children.Add(dxfEndtab);
+                    objects.Pop();
+                    canPop = false;
+                }
                 else if (dataLine == "ENDBLK")
                 {
                     if (canPop)
@@ -147,6 +161,7 @@ public class DxfReaderService
                         "HATCH" => new DxfHatch(),
                         "IMAGE" => new DxfRasterImage(),
                         "INSERT" => new DxfBlockReference(),
+                        "LAYER" => new DxfLayer(),
                         "LINE" => new DxfLine(),
                         "LWPOLYLINE" => new DxfPolyline(),
                         "MTEXT" => new DxfMText(),
@@ -198,6 +213,9 @@ public class DxfReaderService
                 objects.Peek().AddProperty(code, dataLine);
             }
         } 
+
+        // Resolve block references after loading
+        dxfFile.ResolveBlockReferences();
 
         return dxfFile;
     }

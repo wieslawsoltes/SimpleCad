@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:SimpleCad.ViewModels"
+             xmlns:views="using:SimpleCad.Views"
+             mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="400"
+             x:Class="SimpleCad.Views.LayerPanel"
+             x:DataType="vm:LayerPanelViewModel">
+
+  <Design.DataContext>
+    <vm:LayerPanelViewModel />
+  </Design.DataContext>
+
+  <Grid RowDefinitions="Auto, *">
+    
+    <!-- Header -->
+    <Border Grid.Row="0" Background="#2D3748" Padding="8">
+      <TextBlock Text="Layers" FontWeight="Bold" Foreground="White" />
+    </Border>
+    
+    <!-- Layer List -->
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding Layers}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="8,4">
+              <Grid ColumnDefinitions="Auto, Auto, *, Auto, Auto">
+                
+                <!-- Visibility Toggle -->
+                <CheckBox Grid.Column="0" 
+                         IsChecked="{Binding IsVisible}"
+                         ToolTip.Tip="Toggle Visibility"
+                         Margin="0,0,8,0" />
+                
+                <!-- Color Indicator -->
+                <Border Grid.Column="1" 
+                       Width="16" Height="16" 
+                       Background="{Binding ColorNumber, Converter={x:Static views:ColorConverter.Instance}}"
+                       BorderBrush="Gray" BorderThickness="1"
+                       Margin="0,0,8,0" />
+                
+                <!-- Layer Name -->
+                <TextBlock Grid.Column="2" 
+                          Text="{Binding Name}"
+                          VerticalAlignment="Center"
+                          Margin="0,0,8,0" />
+                
+                <!-- Line Type -->
+                <TextBlock Grid.Column="3" 
+                          Text="{Binding LineType}"
+                          FontSize="10"
+                          Foreground="Gray"
+                          VerticalAlignment="Center"
+                          Margin="0,0,8,0" />
+                
+                <!-- Lock Toggle -->
+                <CheckBox Grid.Column="4" 
+                         IsChecked="{Binding IsLocked}"
+                         ToolTip.Tip="Toggle Lock"
+                         Content="🔒" />
+                
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+    
+  </Grid>
+  
+</UserControl>

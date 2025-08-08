@@ -18,7 +18,7 @@ public class DxfLine : DxfEntity
         _pen = new SKPaint
         {
             Style = SKPaintStyle.Stroke,
-            Color = SKColors.White,
+            Color = Color,
             StrokeWidth = (float)_thickness,
         };
 
@@ -41,6 +41,7 @@ public class DxfLine : DxfEntity
         }
 
         _pen.StrokeWidth = (float)(_thickness / zoomFactor);
+        _pen.Color = Color;
 
         context.DrawPath(_path, _pen);
     }

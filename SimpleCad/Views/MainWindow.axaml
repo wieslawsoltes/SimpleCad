@@ -29,13 +29,41 @@
         <MenuItem Name="ToolSelection" Header="_Selection" />
         <Separator />
         <MenuItem Name="ToolLine" Header="_Line" />
+        <MenuItem Name="ToolRectangle" Header="_Rectangle" />
+        <MenuItem Name="ToolCircle" Header="_Circle" />
+        <MenuItem Name="ToolEllipse" Header="_Ellipse" />
+        <MenuItem Name="ToolArc" Header="_Arc" />
+        <Separator />
+        <MenuItem Name="ToolText" Header="_Text" />
+        <MenuItem Name="ToolMText" Header="_MText" />
+        <Separator />
+        <MenuItem Name="ToolPolyline" Header="_Polyline" />
+        <MenuItem Name="ToolHatch" Header="_Hatch" />
+        <MenuItem Name="ToolWipeout" Header="_Wipeout" />
       </MenuItem>
     </Menu>
   
-    <views:CadCanvas Name="CadCanvas" 
-                     HorizontalAlignment="Stretch"
-                     VerticalAlignment="Stretch"
-                     Grid.Row="1" />
+    <!-- Main Content Area with Three Columns -->
+    <Grid Grid.Row="1" ColumnDefinitions="250, *, 250">
+      
+      <!-- Document Tree Panel (Left) -->
+      <Border Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0">
+        <views:DocumentTree DataContext="{Binding DocumentTree}" />
+      </Border>
+      
+      <!-- CAD Canvas (Center) -->
+      <views:CadCanvas Name="CadCanvas" 
+                       HorizontalAlignment="Stretch"
+                       VerticalAlignment="Stretch"
+                       ClipToBounds="True"
+                       Grid.Column="1" />
+      
+      <!-- Layer Panel (Right) -->
+      <Border Grid.Column="2" BorderBrush="#E2E8F0" BorderThickness="1,0,0,0">
+        <views:LayerPanel DataContext="{Binding LayerPanel}" />
+      </Border>
+      
+    </Grid>
 
   </Grid>
 

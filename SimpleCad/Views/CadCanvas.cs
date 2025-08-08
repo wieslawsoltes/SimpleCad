@@ -45,9 +45,9 @@ public partial class CadCanvas : Control, ICanvasService
     {
         base.Render(context);
         
-        context.FillRectangle(Brushes.Transparent, Bounds);
+        context.FillRectangle(Brushes.Transparent, new Rect(new Point(), Bounds.Size));
 
-        context.Custom(new DrawingCustomDrawOperation(Bounds, Drawing));
+        context.Custom(new DrawingCustomDrawOperation(new Rect(new Point(), Bounds.Size), Drawing));
     }
 
     public double GetHeight()

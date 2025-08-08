@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Avalonia;
 using Avalonia.Input;
 using DynamicData;
@@ -16,7 +17,7 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
         DxfWriterService = new DxfWriterService();
         DxfReaderService = new DxfReaderService();
         CurrentTool = new LineTool(this, canvasService, PanAndZoomService);
-        DxfFile = DxfFile.Create();
+        _dxfFile = DxfFile.Create();
     }
 
     public ICanvasService CanvasService { get; }
@@ -28,8 +29,16 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
     public DxfReaderService DxfReaderService { get; }
 
     public Tool? CurrentTool { get; set; }
+    
+    public event System.Action<DxfFile>? FileOpened;
 
-    public DxfFile DxfFile { get; private set; }
+    private DxfFile _dxfFile;
+    
+    public DxfFile DxfFile 
+    { 
+        get => _dxfFile;
+        private set => SetProperty(ref _dxfFile, value);
+    }
 
     public void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -78,6 +87,11 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
         DxfFile.AddEntity(dxfEntity);
     }
     
+    public void Remove(DxfEntity dxfEntity)
+    {
+        DxfFile.RemoveEntity(dxfEntity);
+    }
+    
     public void Render(SKCanvas context, Rect bounds)
     {
         var paint = new SKPaint
@@ -102,7 +116,51 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
 
         DxfFile.Render(context, bounds, transform.ScaleX);
         
+        // Render selection highlights
+        RenderSelectionHighlights(context, transform.ScaleX);
+        
         context.Restore();
+    }
+
+    private void RenderSelectionHighlights(SKCanvas context, double zoomFactor)
+    {
+        if (CurrentTool is SelectionTool selectionTool && selectionTool.SelectedEntities.Count > 0)
+        {
+            using var selectionPaint = new SKPaint
+            {
+                Color = SKColors.Cyan,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = (float)(2.0 / zoomFactor),
+                IsAntialias = true
+            };
+
+            using var dashEffect = SKPathEffect.CreateDash(new float[] { 5.0f / (float)zoomFactor, 5.0f / (float)zoomFactor }, 0);
+            selectionPaint.PathEffect = dashEffect;
+
+            foreach (var entity in selectionTool.SelectedEntities)
+            {
+                var bounds = entity.GetBounds();
+                context.DrawRect(bounds, selectionPaint);
+            }
+        }
+
+        // Render selection rectangle during drag
+        if (CurrentTool is SelectionTool dragSelectionTool && dragSelectionTool.IsDragging)
+        {
+            using var dragPaint = new SKPaint
+            {
+                Color = SKColors.Blue.WithAlpha(128),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = (float)(1.0 / zoomFactor),
+                IsAntialias = true
+            };
+
+            var dragRect = dragSelectionTool.GetDragRectangle();
+            if (dragRect.HasValue)
+            {
+                context.DrawRect(dragRect.Value, dragPaint);
+            }
+        }
     }
 
     public void Open(Stream stream)
@@ -121,6 +179,9 @@ public class DrawingViewModel : ViewModelBase, IDrawing, IDrawingService
         }
 
         DxfFile = dxfFile;
+        
+        // Notify that the file has been opened
+        FileOpened?.Invoke(dxfFile);
 
         CanvasService.Invalidate();
     }

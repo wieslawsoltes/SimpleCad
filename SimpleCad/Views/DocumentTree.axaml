@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:SimpleCad.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="250" d:DesignHeight="400"
+             x:Class="SimpleCad.Views.DocumentTree"
+             x:DataType="vm:DocumentTreeViewModel">
+
+  <Design.DataContext>
+    <vm:DocumentTreeViewModel />
+  </Design.DataContext>
+
+  <Grid RowDefinitions="Auto, *">
+    
+    <!-- Header -->
+    <Border Grid.Row="0" Background="#2D3748" Padding="8">
+      <TextBlock Text="Document Structure" FontWeight="Bold" Foreground="White" />
+    </Border>
+    
+    <!-- Tree View -->
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <TreeView ItemsSource="{Binding RootNodes}">
+        <TreeView.ItemTemplate>
+          <TreeDataTemplate ItemsSource="{Binding Children}" DataType="vm:TreeNodeViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="{Binding Icon}" FontSize="12" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+            </StackPanel>
+          </TreeDataTemplate>
+        </TreeView.ItemTemplate>
+        
+        <TreeView.Styles>
+          <Style Selector="TreeViewItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#3182CE" />
+          </Style>
+          
+          <Style Selector="TreeViewItem:selected TextBlock">
+            <Setter Property="Foreground" Value="White" />
+          </Style>
+        </TreeView.Styles>
+        
+      </TreeView>
+    </ScrollViewer>
+    
+  </Grid>
+  
+</UserControl>
